@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '4.0.1'
+    id 'org.springframework.boot' version '3.3.2'
     id 'io.spring.dependency-management' version '1.1.7'
 }
 
@@ -19,26 +19,38 @@ repositories {
 }
 
 dependencies {
-    // Spring
-    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 
-    // Telegram
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+
     implementation 'org.telegram:telegrambots-spring-boot-starter:6.9.7.1'
 
-    // Утилиты
-    implementation 'org.apache.commons:commons-lang3'
+    implementation 'org.apache.commons:commons-lang3:3.14.0'
 
-    // Lombok
     compileOnly 'org.projectlombok:lombok:1.18.34'
     annotationProcessor 'org.projectlombok:lombok:1.18.34'
 
-    // slf4j-api
-    implementation 'org.slf4j:slf4j-api:2.0.13'
-
-    // Tests
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+// ========== КРИТИЧЕСКИ ВАЖНО ДЛЯ RAILWAY ==========
+
+// Отключаем обычный JAR (plain.jar)
+jar {
+    enabled = false
+}
+
+bootJar {
+    archiveFileName = 'app.jar'  // Простое имя для Railway
+
+    mainClass = 'com.gmail.denigroshev.kidsriot.chatbot.Application'
+
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+springBoot {
+    mainClass = 'com.gmail.denigroshev.MainApplication'
 }
