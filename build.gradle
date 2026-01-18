@@ -1,0 +1,44 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.1'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.gmail.denigroshev'
+version = '0.0.1-SNAPSHOT'
+description = 'Demo project for chat bot telegram'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Spring
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+
+    // Telegram
+    implementation 'org.telegram:telegrambots-spring-boot-starter:6.9.7.1'
+
+    // Утилиты
+    implementation 'org.apache.commons:commons-lang3'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok:1.18.34'
+    annotationProcessor 'org.projectlombok:lombok:1.18.34'
+
+    // slf4j-api
+    implementation 'org.slf4j:slf4j-api:2.0.13'
+
+    // Tests
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
