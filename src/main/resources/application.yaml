@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: kidsriot.chatbot
+server:
+  port: 8081
+
+telegram:
+  bot:
+    token: 8469264740:AAGp7y9L4H0dB7cYZlo2-DoznFwdbRVks2Y
+    username: kidsriot_bot
+logging:
+  level:
+    org.springframework.boot: DEBUG
