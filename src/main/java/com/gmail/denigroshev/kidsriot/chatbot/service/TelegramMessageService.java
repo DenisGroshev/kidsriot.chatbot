@@ -24,6 +24,7 @@ public class TelegramMessageService {
         return SendMessage.builder()
                 .chatId(chatId.toString())
                 .text(text)
+                .parseMode("HTML")
                 .replyMarkup(keyboard)
                 .build();
     }
@@ -33,6 +34,7 @@ public class TelegramMessageService {
                 .chatId(chatId.toString())
                 .messageId(messageId)
                 .text(text)
+                .parseMode("HTML")
                 .replyMarkup(keyboard)
                 .build();
     }
