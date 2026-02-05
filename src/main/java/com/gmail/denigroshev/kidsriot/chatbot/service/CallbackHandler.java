@@ -44,7 +44,7 @@ public class CallbackHandler {
                                     "\n" +
                                     "Присоединяйся к коммьюнити - вместе мы победим!\n" +
                                     "\n" +
-                                    "LONG LIVE KIDS RIOT",
+                                    "<i>LONG LIVE KIDS RIOT</i>",
                             keyboardFactory.getBackButton("BACK_TO_MAIN"))
             );
 
