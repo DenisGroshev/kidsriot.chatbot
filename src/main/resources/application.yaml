@@ -6,8 +6,8 @@ server:
 
 telegram:
   bot:
-    token: 8469264740:AAGp7y9L4H0dB7cYZlo2-DoznFwdbRVks2Y
-    username: kidsriot_bot
+    token: 8512050268:AAGWuWwl44Ca9KVrZUZTjIa03XCgmDsRaDU
+    username: kidsadults_bot
 logging:
   level:
     org.springframework.boot: DEBUG

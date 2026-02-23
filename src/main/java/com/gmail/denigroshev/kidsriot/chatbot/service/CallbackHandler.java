@@ -2,21 +2,142 @@ package com.gmail.denigroshev.kidsriot.chatbot.service;
 
 import com.gmail.denigroshev.kidsriot.chatbot.factory.KeyboardFactory;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
+import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageCaption;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
+import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Update;
 
+import java.io.InputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CallbackHandler {
 
     private final TelegramMessageService messageService;
     private final KeyboardFactory keyboardFactory;
+    private final PromoCodeService promoCodeService;
+
+    private static final String CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    private static final int CODE_LENGTH = 12;
+    private static final Random RANDOM = new Random();
+
+    private String randomString(int length) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            sb.append(CHARS.charAt(RANDOM.nextInt(CHARS.length())));
+        }
+        return sb.toString();
+    }
+
+    public void handlePromoAnimation(Update update, KidultBotService bot) {
+        CallbackQuery callback = update.getCallbackQuery();
+        Long chatId = callback.getMessage().getChatId();
+        Integer messageId = callback.getMessage().getMessageId();
+
+        PromoCodeService.PromoResult result = promoCodeService.requestPromoCode(chatId);
+
+        // Уже получал или закончились — без анимации и без фото
+        if (result.getStatus() != PromoCodeService.PromoResult.Status.ISSUED) {
+            String text = switch (result.getStatus()) {
+                case ALREADY_ISSUED -> "\uD83C\uDFB0 <b>ТВОЙ ВЫИГРЫШ:</b>\n\n" +
+                        "<b>\uD83D\uDD25Скидка:</b> " + result.getDiscount() + "\n" +
+                        "<b>\uD83C\uDF52Промокод:</b> <code>" + result.getCode() + "</code>\n\n" +
+                        "Додепа не будет \uD83D\uDE2D Забирай свой бонус и УСПЕЙ активировать его до 27.02 \uD83D\uDCB0\uD83D\uDCB0" + "\n"
+                + "‼\uFE0FВведи его в корзине при оформлении заказа на сайте kidsriot.ru и суммируй со скидкой -23% \uD83E\uDD11";
+                case EXHAUSTED -> "\uD83E\uDD72<b>Упс… К сожалению, спины закончились - все промокоды уже разобрали.</b>\n\n" +
+                        "Следи за акциями и новыми дропами в нашем тгк @kids_riot - впереди много интересного ^^";
+                default -> "";
+            };
+            bot.executeMethods(List.of(
+                    messageService.editMessage(chatId, messageId, text,
+                            keyboardFactory.getBackButton("BACK_TO_MAIN"))
+            ));
+            return;
+        }
+
+        // === ШАГ 1: удаляем текст, сразу отправляем фото с начальной подписью ===
+        try {
+            InputStream photoStream = new ClassPathResource("promo.PNG").getInputStream();
+
+            SendPhoto sendPhoto = SendPhoto.builder()
+                    .chatId(chatId.toString())
+                    .photo(new InputFile(photoStream, "promo.PNG"))
+                    .caption("<b>Делаем прокрутик...\uD83D\uDE4F\uD83D\uDE4F</b>\n\n" +
+                            "<code>" + randomString(CODE_LENGTH) + "</code>\n\n" +
+                            "<i>Опа, кажись занесет \uD83E\uDD11\uD83E\uDD11\uD83E\uDD11</i>")
+                    .parseMode("HTML")
+                    .build();
+
+            bot.deleteAndSendPhoto(chatId, messageId, sendPhoto, photoMessageId -> {
+
+                // === ШАГ 2: анимация в подписи фото ===
+                int animationSteps = 5;
+                long stepDelay = 350;
+
+                for (int i = 1; i <= animationSteps; i++) {
+                    EditMessageCaption frame = EditMessageCaption.builder()
+                            .chatId(chatId.toString())
+                            .messageId(photoMessageId)
+                            .caption("<b>Делаем прокрутик...\uD83D\uDE4F\uD83D\uDE4F</b>\n\n" +
+                                    "<code>" + randomString(CODE_LENGTH) + "</code>\n\n" +
+                                    "<i>Опа, кажись занесет \uD83E\uDD11\uD83E\uDD11\uD83E\uDD11</i>")
+                            .parseMode("HTML")
+                            .build();
+                    bot.scheduleEditCaption(frame, (long) i * stepDelay);
+                }
+
+                // === ШАГ 3: финальный промокод в подписи ===
+                long finalDelay = (long) animationSteps * stepDelay + 200;
+
+                EditMessageCaption finalCaption = EditMessageCaption.builder()
+                        .chatId(chatId.toString())
+                        .messageId(photoMessageId)
+                        .caption("<b>\uD83C\uDFB0 ТВОЙ ВЫИГРЫШ:</b>\n\n" +
+                                "<b>\uD83D\uDD25Скидка:</b> <b>" + result.getDiscount() + "</b>\n" +
+                                "<b>\uD83C\uDF52Промокод:</b> <code>" + result.getCode() + "</code>\n\n" +
+                                "Поздравляем с 23 февраля! Это уникальный РАЗОВЫЙ промик только для тебя, действующий до 27.02 \uD83D\uDE08 \n\n" +
+                                "‼\uFE0F Введи его в корзине при оформлении заказа на сайте kidsriot.ru и суммируй со скидкой -23% \uD83E\uDD11")
+                        .parseMode("HTML")
+                        .replyMarkup(keyboardFactory.getBackButton("BACK_TO_MAIN"))
+                        .build();
+
+                bot.scheduleEditCaption(finalCaption, finalDelay);
+            });
+
+        } catch (Exception e) {
+            log.error("Failed to load promo photo: {}", e.getMessage());
+
+            // Fallback — текст без фото
+            int animationSteps = 6;
+            long stepDelay = 350;
+            for (int i = 0; i < animationSteps; i++) {
+                EditMessageText frame = messageService.editMessage(chatId, messageId,
+                        "<b>Делаем прокрутик...\uD83D\uDE4F\uD83D\uDE4F</b>\n\n" +
+                                "<code>" + randomString(CODE_LENGTH) + "</code>\n\n" +
+                                "<i>Опа, кажись занесет \uD83E\uDD11\uD83E\uDD11\uD83E\uDD11</i>", null);
+                bot.scheduleEdit(frame, (long) i * stepDelay);
+            }
+            EditMessageText fallback = messageService.editMessage(chatId, messageId,
+                    "<b>\uD83C\uDFB0 ТВОЙ ВЫИГРЫШ:</b>\n\n" +
+                            "<b>\uD83D\uDD25Скидка:</b> <b>" + result.getDiscount() + "</b>\n" +
+                            "<b>\uD83C\uDF52Промокод:</b> <code>" + result.getCode() + "</code>\n\n" +
+                            "Поздравляем с 23 февраля! Это уникальный РАЗОВЫЙ промик только для тебя, действующий до 27.02 \uD83D\uDE08 \n\n" +
+                            "‼\uFE0F Введи его в корзине при оформлении заказа на сайте kidsriot.ru и суммируй со скидкой -23% \uD83E\uDD11",
+                    keyboardFactory.getBackButton("BACK_TO_MAIN"));
+            bot.scheduleEdit(fallback, (long) animationSteps * stepDelay + 200);
+        }
+    }
 
     public List<BotApiMethod<? extends Serializable>> handleCallback(Update update) {
         List<BotApiMethod<? extends Serializable>> messages = new ArrayList<>();
@@ -26,12 +147,23 @@ public class CallbackHandler {
         Integer messageId = callback.getMessage().getMessageId();
 
         switch (data) {
-            // Меню навигация
-            case "BACK_TO_MAIN" -> messages.add(
-                    messageService.editMessage(chatId, messageId,
+            case "BACK_TO_MAIN" -> {
+                boolean isPhoto = false;
+                if (callback.getMessage() instanceof org.telegram.telegrambots.meta.api.objects.Message msg) {
+                    isPhoto = msg.hasPhoto();
+                }
+
+                if (isPhoto) {
+                    messages.add(messageService.deleteMessage(chatId, messageId));
+                    messages.add(messageService.createTextMessage(chatId,
                             "Выберите интересующий вопрос 👇",
-                            keyboardFactory.getMainMenu())
-            );
+                            keyboardFactory.getMainMenu()));
+                } else {
+                    messages.add(messageService.editMessage(chatId, messageId,
+                            "Выберите интересующий вопрос 👇",
+                            keyboardFactory.getMainMenu()));
+                }
+            }
 
             case "MENU_ABOUT" -> messages.add(
                     messageService.editMessage(chatId, messageId,
@@ -94,7 +226,7 @@ public class CallbackHandler {
             case "SIZES_RIPPED_ZIP" -> messages.add(
                     messageService.editMessage(chatId, messageId,
                             "<b>RIPPED ZIP</b>\n\n" +
-                                   "Выбери размер:",
+                                    "Выбери размер:",
                             keyboardFactory.getRippedZipSizesMenu())
             );
 
@@ -336,7 +468,6 @@ public class CallbackHandler {
                             keyboardFactory.getProposalsContactMenu())
             );
 
-            // Оплата
             case "PAYMENT" -> messages.add(
                     messageService.editMessage(chatId, messageId,
                             "<b>Проблема с оплатой</b>\n\n" +
@@ -357,7 +488,6 @@ public class CallbackHandler {
                             keyboardFactory.getBackWithOperatorButton("MENU_PAYMENT"))
             );
 
-            // Доставка
             case "DELIVERY" -> messages.add(
                     messageService.editMessage(chatId, messageId,
                             "<b>Отслеживание</b>\n\n" +
@@ -400,7 +530,6 @@ public class CallbackHandler {
                             keyboardFactory.getBackButton("MENU_DELIVERY"))
             );
 
-            // Возврат
             case "CLOTHE_BACK" -> messages.add(
                     messageService.editMessage(chatId, messageId,
                             "<b>Возврат</b>\n\n" +
@@ -415,8 +544,6 @@ public class CallbackHandler {
                             keyboardFactory.getBackWithOperatorButton("BACK_TO_MAIN"))
             );
 
-
-            // Простые ответы
             case "SALES" -> messages.add(
                     messageService.editMessage(chatId, messageId,
                             "🎁 Скидки и акции:\n\n" +
