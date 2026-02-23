@@ -47,23 +47,55 @@ public class CallbackHandler {
 
         PromoCodeService.PromoResult result = promoCodeService.requestPromoCode(chatId);
 
-        // Уже получал или закончились — без анимации и без фото
         if (result.getStatus() != PromoCodeService.PromoResult.Status.ISSUED) {
-            String text = switch (result.getStatus()) {
-                case ALREADY_ISSUED -> "\uD83C\uDFB0 <b>ТВОЙ ВЫИГРЫШ:</b>\n\n" +
-                        "<b>\uD83D\uDD25Скидка:</b> " + result.getDiscount() + "\n" +
-                        "<b>\uD83C\uDF52Промокод:</b> <code>" + result.getCode() + "</code>\n\n" +
-                        "Додепа не будет \uD83D\uDE2D Забирай свой бонус и УСПЕЙ активировать его до 27.02 \uD83D\uDCB0\uD83D\uDCB0" + "\n"
-                + "‼\uFE0FВведи его в корзине при оформлении заказа на сайте kidsriot.ru и суммируй со скидкой -23% \uD83E\uDD11";
-                case EXHAUSTED -> "\uD83E\uDD72<b>Упс… К сожалению, спины закончились - все промокоды уже разобрали.</b>\n\n" +
-                        "Следи за акциями и новыми дропами в нашем тгк @kids_riot - впереди много интересного ^^";
-                default -> "";
-            };
-            bot.executeMethods(List.of(
-                    messageService.editMessage(chatId, messageId, text,
-                            keyboardFactory.getBackButton("BACK_TO_MAIN"))
-            ));
-            return;
+
+            if (result.getStatus() == PromoCodeService.PromoResult.Status.ALREADY_ISSUED) {
+                try {
+                    InputStream photoStream = new ClassPathResource("promo.PNG").getInputStream();
+
+                    String caption = "🎰 <b>ТВОЙ ВЫИГРЫШ:</b>\n\n" +
+                            "<b>🔥Скидка:</b> " + result.getDiscount() + "\n" +
+                            "<b>🍒Промокод:</b> <code>" + result.getCode() + "</code>\n\n" +
+                            "Додепа не будет 😭 Забирай свой бонус и УСПЕЙ активировать его до 27.02 💰💰\n" +
+                            "‼️Введи его в корзине при оформлении заказа на сайте kidsriot.ru и суммируй со скидкой -23% 🤑";
+
+                    SendPhoto sendPhoto = SendPhoto.builder()
+                            .chatId(chatId.toString())
+                            .photo(new InputFile(photoStream, "promo.PNG"))
+                            .caption(caption)
+                            .parseMode("HTML")
+                            .replyMarkup(keyboardFactory.getBackButton("BACK_TO_MAIN"))
+                            .build();
+
+                    bot.deleteAndSendPhoto(chatId, messageId, sendPhoto, photoMessageId -> {});
+
+                } catch (Exception e) {
+                    log.error("Failed to load promo photo for already issued: {}", e.getMessage());
+
+                    // Fallback — текст без фото
+                    bot.executeMethods(List.of(
+                            messageService.editMessage(chatId, messageId,
+                                    "🎰 <b>ТВОЙ ВЫИГРЫШ:</b>\n\n" +
+                                            "<b>🔥Скидка:</b> " + result.getDiscount() + "\n" +
+                                            "<b>🍒Промокод:</b> <code>" + result.getCode() + "</code>\n\n" +
+                                            "Додепа не будет 😭 Забирай свой бонус и УСПЕЙ активировать его до 27.02 💰💰\n" +
+                                            "‼️Введи его в корзине при оформлении заказа на сайте kidsriot.ru и суммируй со скидкой -23% 🤑",
+                                    keyboardFactory.getBackButton("BACK_TO_MAIN"))
+                    ));
+                }
+                return;
+            }
+
+            // EXHAUSTED — без фото
+            if (result.getStatus() == PromoCodeService.PromoResult.Status.EXHAUSTED) {
+                bot.executeMethods(List.of(
+                        messageService.editMessage(chatId, messageId,
+                                "🥲<b>Упс… К сожалению, спины закончились - все промокоды уже разобрали.</b>\n\n" +
+                                        "Следи за акциями и новыми дропами в нашем тгк @kids_riot - впереди много интересного ^^",
+                                keyboardFactory.getBackButton("BACK_TO_MAIN"))
+                ));
+                return;
+            }
         }
 
         // === ШАГ 1: удаляем текст, сразу отправляем фото с начальной подписью ===
