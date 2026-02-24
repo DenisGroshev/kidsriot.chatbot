@@ -3,7 +3,6 @@ package com.gmail.denigroshev.kidsriot.chatbot.service;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,7 +12,7 @@ public class PromoCodeService {
 
     public record PromoCode(String code, String discount) {}
 
-    private final List<PromoCode> availableCodes = Collections.synchronizedList(new ArrayList<>(List.of(
+    private final List<PromoCode> availableCodes = new ArrayList<>(List.of(
             new PromoCode("04KMOA", "30%"),
             new PromoCode("7K9ZT5", "20%"),
             new PromoCode("3BIJPU", "30%"),
@@ -114,33 +113,24 @@ public class PromoCodeService {
             new PromoCode("K8ZBUC", "20%"),
             new PromoCode("AYNLA7", "40%"),
             new PromoCode("M9SL2T", "50%")
-    )));
+    ));
 
-    // chatId -> PromoCode
+    // chatId -> PromoCode (каждый пользователь получает свой зафиксированный промокод)
     private final Map<Long, PromoCode> issuedCodes = new ConcurrentHashMap<>();
 
     public PromoResult requestPromoCode(Long chatId) {
+        // Уже получал — возвращаем тот же
         PromoCode existing = issuedCodes.get(chatId);
         if (existing != null) {
             return PromoResult.alreadyIssued(existing);
         }
 
-        synchronized (availableCodes) {
-            if (availableCodes.isEmpty()) {
-                return PromoResult.exhausted();
-            }
-            int index = (int) (Math.random() * availableCodes.size());
-            PromoCode promoCode = availableCodes.remove(index);
-            issuedCodes.put(chatId, promoCode);
-            return PromoResult.issued(promoCode);
-        }
+        // Выдаём рандомный из списка (не удаляем)
+        int index = (int) (Math.random() * availableCodes.size());
+        PromoCode promoCode = availableCodes.get(index);
+        issuedCodes.put(chatId, promoCode);
+        return PromoResult.issued(promoCode);
     }
-
-    public int remainingCount() {
-        return availableCodes.size();
-    }
-
-    // --- Результат ---
 
     public static class PromoResult {
         public enum Status {
@@ -171,7 +161,6 @@ public class PromoCodeService {
 
         public Status getStatus() { return status; }
 
-        // Оставляем для совместимости со старым кодом
         public String getCode() {
             return promoCode != null ? promoCode.code() : null;
         }
