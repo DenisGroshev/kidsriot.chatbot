@@ -32,9 +32,9 @@ public class KeyboardFactory {
                 button("Связь", "MENU_CONTACT")
         ));
 
-        keyboard.add(List.of(
-                button("\uD83C\uDFB0 LOXOSLOT555 \uD83C\uDFB0", "PROMO_FEB23")
-        ));
+//        keyboard.add(List.of(
+//                button("\uD83C\uDFB0 LOXOSLOT555 \uD83C\uDFB0", "PROMO_FEB23")
+//        ));
 
         return new InlineKeyboardMarkup(keyboard);
     }
